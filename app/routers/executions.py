@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from app.database import get_db
 from app.models.models import ExecutionRecord, AuditEvent, StatusEnum
-from app.schemas.schemas import ExecutionCreate, ExecutionUpdate, ExecutionResponse
+from app.schemas.schemas import ExecutionCreate, ExecutionUpdate
 from app.routers.auth import get_current_user
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
 router = APIRouter(prefix="/api/v1/executions", tags=["Executions"])
 
-# ── Create Execution ──────────────────────────────────────────
+# ── Create Execution ───────────────────────────────────────────
 @router.post("/", status_code=201)
 def create_execution(
     payload: ExecutionCreate,
@@ -24,20 +23,20 @@ def create_execution(
         job_name=payload.job_name,
         triggered_by=current_user["username"],
         status=StatusEnum.STARTED,
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         input_params=payload.input_params,
         tags=payload.tags
     )
     db.add(execution)
 
-    # Write audit event
+    # Auto create first audit event
     audit = AuditEvent(
         id=str(uuid.uuid4()),
         execution_id=execution.id,
         event_type="EXECUTION_STARTED",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         actor=current_user["username"],
-        event_metadata=f"Job '{payload.job_name}' started"
+        event_metadata=f"Job {payload.job_name} started"
     )
     db.add(audit)
     db.commit()
@@ -52,7 +51,7 @@ def create_execution(
         "start_time": execution.start_time
     }
 
-# ── Update Execution Status ───────────────────────────────────
+# ── Update Execution Status ────────────────────────────────────
 @router.patch("/{execution_id}")
 def update_execution(
     execution_id: str,
@@ -73,14 +72,14 @@ def update_execution(
     execution.duration_ms = payload.duration_ms
 
     if payload.status in [StatusEnum.SUCCESS, StatusEnum.FAILED]:
-        execution.end_time = datetime.utcnow()
+        execution.end_time = datetime.now(timezone.utc)
 
-    # Write audit event
+    # Add audit event for status change
     audit = AuditEvent(
         id=str(uuid.uuid4()),
         execution_id=execution_id,
         event_type=f"STATUS_CHANGED_TO_{payload.status}",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         actor=current_user["username"],
         event_metadata=f"Status updated to {payload.status}"
     )
@@ -92,11 +91,10 @@ def update_execution(
         "message": "Execution updated successfully",
         "execution_id": execution.id,
         "status": execution.status,
-        "end_time": execution.end_time,
-        "duration_ms": execution.duration_ms
+        "end_time": execution.end_time
     }
 
-# ── Get All Executions with Filters ──────────────────────────
+# ── Get All Executions with Filters ───────────────────────────
 @router.get("/")
 def get_executions(
     job_name: Optional[str] = Query(None),
@@ -111,7 +109,6 @@ def get_executions(
 ):
     query = db.query(ExecutionRecord)
 
-    # Apply filters
     if job_name:
         query = query.filter(ExecutionRecord.job_name.ilike(f"%{job_name}%"))
     if status:
@@ -119,9 +116,13 @@ def get_executions(
     if triggered_by:
         query = query.filter(ExecutionRecord.triggered_by == triggered_by)
     if from_date:
-        query = query.filter(ExecutionRecord.start_time >= datetime.fromisoformat(from_date))
+        query = query.filter(
+            ExecutionRecord.start_time >= datetime.fromisoformat(from_date)
+        )
     if to_date:
-        query = query.filter(ExecutionRecord.start_time <= datetime.fromisoformat(to_date))
+        query = query.filter(
+            ExecutionRecord.start_time <= datetime.fromisoformat(to_date)
+        )
 
     total = query.count()
     executions = query.offset((page - 1) * limit).limit(limit).all()
@@ -146,7 +147,7 @@ def get_executions(
         ]
     }
 
-# ── Get Single Execution ──────────────────────────────────────
+# ── Get Single Execution ───────────────────────────────────────
 @router.get("/{execution_id}")
 def get_execution(
     execution_id: str,

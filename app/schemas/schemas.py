@@ -51,5 +51,4 @@ class ExecutionResponse(BaseModel):
     input_params: Optional[str]
     tags: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
