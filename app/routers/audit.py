@@ -2,18 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.models import AuditEvent, ExecutionRecord
-from app.routers.auth import get_current_user
+from app.routers.auth import require_analyst
 
 router = APIRouter(prefix="/api/v1/executions", tags=["Audit Trail"])
 
-# ── Get Audit Trail for specific execution ─────────────────────
+# ── Get Audit Trail — ANALYST and above ───────────────────────
 @router.get("/{execution_id}/audit")
 def get_audit_trail(
     execution_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_analyst)
 ):
-    # Check execution exists
     execution = db.query(ExecutionRecord).filter(
         ExecutionRecord.id == execution_id
     ).first()
@@ -21,7 +20,6 @@ def get_audit_trail(
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
 
-    # Get all audit events for this execution
     audit_events = db.query(AuditEvent).filter(
         AuditEvent.execution_id == execution_id
     ).order_by(AuditEvent.timestamp.asc()).all()

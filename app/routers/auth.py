@@ -49,3 +49,28 @@ def require_admin(current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+# ── Role Dependencies ──────────────────────
+def require_admin(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied. Admin role required."
+        )
+    return current_user
+
+def require_analyst(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] not in ["ADMIN", "ANALYST"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied. Analyst role or above required."
+        )
+    return current_user
+
+def require_viewer(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] not in ["ADMIN", "ANALYST", "VIEWER"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied."
+        )
+    return current_user

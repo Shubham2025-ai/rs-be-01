@@ -3,19 +3,19 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.models import ExecutionRecord, AuditEvent, StatusEnum
 from app.schemas.schemas import ExecutionCreate, ExecutionUpdate
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_admin, require_analyst, require_viewer
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
 router = APIRouter(prefix="/api/v1/executions", tags=["Executions"])
 
-# ── Create Execution ───────────────────────────────────────────
+# ── Create Execution — ADMIN only ──────────────────────────────
 @router.post("/", status_code=201)
 def create_execution(
     payload: ExecutionCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_admin)
 ):
     execution = ExecutionRecord(
         id=str(uuid.uuid4()),
@@ -29,7 +29,6 @@ def create_execution(
     )
     db.add(execution)
 
-    # Auto create first audit event
     audit = AuditEvent(
         id=str(uuid.uuid4()),
         execution_id=execution.id,
@@ -51,13 +50,13 @@ def create_execution(
         "start_time": execution.start_time
     }
 
-# ── Update Execution Status ────────────────────────────────────
+# ── Update Execution — ADMIN only ──────────────────────────────
 @router.patch("/{execution_id}")
 def update_execution(
     execution_id: str,
     payload: ExecutionUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_admin)
 ):
     execution = db.query(ExecutionRecord).filter(
         ExecutionRecord.id == execution_id
@@ -74,7 +73,6 @@ def update_execution(
     if payload.status in [StatusEnum.SUCCESS, StatusEnum.FAILED]:
         execution.end_time = datetime.now(timezone.utc)
 
-    # Add audit event for status change
     audit = AuditEvent(
         id=str(uuid.uuid4()),
         execution_id=execution_id,
@@ -94,7 +92,7 @@ def update_execution(
         "end_time": execution.end_time
     }
 
-# ── Get All Executions with Filters ───────────────────────────
+# ── Get All Executions — VIEWER and above ──────────────────────
 @router.get("/")
 def get_executions(
     job_name: Optional[str] = Query(None),
@@ -105,7 +103,7 @@ def get_executions(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_viewer)
 ):
     query = db.query(ExecutionRecord)
 
@@ -147,12 +145,12 @@ def get_executions(
         ]
     }
 
-# ── Get Single Execution ───────────────────────────────────────
+# ── Get Single Execution — VIEWER and above ────────────────────
 @router.get("/{execution_id}")
 def get_execution(
     execution_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_viewer)
 ):
     execution = db.query(ExecutionRecord).filter(
         ExecutionRecord.id == execution_id

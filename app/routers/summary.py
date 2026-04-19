@@ -3,23 +3,22 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app.models.models import ExecutionRecord, StatusEnum
-from app.routers.auth import get_current_user
+from app.routers.auth import require_analyst
 from typing import Optional
 from datetime import datetime
 
 router = APIRouter(prefix="/api/v1/executions", tags=["Summary Analytics"])
 
-# ── Execution Summary ──────────────────────────────────────────
+# ── Summary Stats — ANALYST and above ─────────────────────────
 @router.get("/summary/stats")
 def get_summary(
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_analyst)
 ):
     query = db.query(ExecutionRecord)
 
-    # Apply date filters if provided
     if from_date:
         query = query.filter(
             ExecutionRecord.start_time >= datetime.fromisoformat(from_date)
@@ -36,17 +35,14 @@ def get_summary(
     started = query.filter(ExecutionRecord.status == StatusEnum.STARTED).count()
     retry = query.filter(ExecutionRecord.status == StatusEnum.RETRY).count()
 
-    # Average duration (only completed executions)
     avg_duration = db.query(
         func.avg(ExecutionRecord.duration_ms)
     ).filter(
         ExecutionRecord.duration_ms.isnot(None)
     ).scalar()
 
-    # Success rate
     success_rate = round((success / total * 100), 2) if total > 0 else 0
 
-    # Most failed jobs
     failed_jobs = db.query(
         ExecutionRecord.job_name,
         func.count(ExecutionRecord.id).label("fail_count")
