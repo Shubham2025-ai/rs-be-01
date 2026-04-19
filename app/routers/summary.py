@@ -4,12 +4,12 @@ from sqlalchemy import func
 from app.database import get_db
 from app.models.models import ExecutionRecord, StatusEnum
 from app.routers.auth import require_analyst
+from app.cache import get_cache, set_cache
 from typing import Optional
 from datetime import datetime
 
 router = APIRouter(prefix="/api/v1/executions", tags=["Summary Analytics"])
 
-# ── Summary Stats — ANALYST and above ─────────────────────────
 @router.get("/summary/stats")
 def get_summary(
     from_date: Optional[str] = Query(None),
@@ -17,6 +17,16 @@ def get_summary(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_analyst)
 ):
+    # Build cache key
+    cache_key = f"summary:{from_date}:{to_date}"
+
+    # Check cache first
+    cached = get_cache(cache_key)
+    if cached:
+        cached["source"] = "cache"
+        return cached
+
+    # Query database
     query = db.query(ExecutionRecord)
 
     if from_date:
@@ -54,7 +64,7 @@ def get_summary(
         func.count(ExecutionRecord.id).desc()
     ).limit(5).all()
 
-    return {
+    result = {
         "total_executions": total,
         "success_count": success,
         "failed_count": failed,
@@ -62,9 +72,15 @@ def get_summary(
         "started_count": started,
         "retry_count": retry,
         "success_rate_percent": success_rate,
-        "average_duration_ms": round(avg_duration, 2) if avg_duration else 0,
+        "average_duration_ms": float(round(avg_duration, 2)) if avg_duration else 0.0,
         "top_failed_jobs": [
             {"job_name": job.job_name, "fail_count": job.fail_count}
             for job in failed_jobs
-        ]
+        ],
+        "source": "database"
     }
+
+    # Store in cache for 60 seconds
+    set_cache(cache_key, result, expire_seconds=60)
+
+    return result

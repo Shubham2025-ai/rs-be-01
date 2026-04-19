@@ -36,6 +36,7 @@ A production-grade backend microservice built for **Rubiscape** as part of the i
 ---
 
 ## 🏗️ Project Structure
+
 rs-be-01/
 ├── app/
 │   ├── routers/

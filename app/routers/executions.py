@@ -1,3 +1,4 @@
+from app.cache import clear_execution_cache
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -40,6 +41,8 @@ def create_execution(
     db.add(audit)
     db.commit()
     db.refresh(execution)
+    clear_execution_cache()  # ← add this
+
 
     return {
         "message": "Execution created successfully",
@@ -84,6 +87,8 @@ def update_execution(
     db.add(audit)
     db.commit()
     db.refresh(execution)
+    clear_execution_cache()  # ← add this
+
 
     return {
         "message": "Execution updated successfully",
