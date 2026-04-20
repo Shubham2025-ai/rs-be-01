@@ -1,3 +1,4 @@
+from app.messaging import publish_event
 from app.cache import clear_execution_cache
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -41,8 +42,15 @@ def create_execution(
     db.add(audit)
     db.commit()
     db.refresh(execution)
-    clear_execution_cache()  # ← add this
+    clear_execution_cache()
 
+# Publish event to RabbitMQ
+    publish_event({
+        "event_type": "EXECUTION_CREATED",
+        "execution_id": execution.id,
+        "actor": current_user["username"],
+        "metadata": f"Job {payload.job_name} created"
+    })
 
     return {
         "message": "Execution created successfully",
@@ -87,7 +95,15 @@ def update_execution(
     db.add(audit)
     db.commit()
     db.refresh(execution)
-    clear_execution_cache()  # ← add this
+    clear_execution_cache()
+
+# Publish event to RabbitMQ
+    publish_event({
+        "event_type": f"EXECUTION_UPDATED_{payload.status}",
+        "execution_id": execution_id,
+        "actor": current_user["username"],
+        "metadata": f"Status changed to {payload.status}"
+    })
 
 
     return {
