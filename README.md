@@ -1,6 +1,3 @@
-Here's the complete README — just copy and paste everything:
-
-```markdown
 # RS-BE-01 — Execution Tracking and Audit Service
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
@@ -214,7 +211,7 @@ Return data
 
 **1. Clone the repository:**
 ```bash
-git clone https://github.com/Shubham2025-ai/rs-be-01.git
+git clone https://github.com/YOURUSERNAME/rs-be-01.git
 cd rs-be-01
 ```
 
