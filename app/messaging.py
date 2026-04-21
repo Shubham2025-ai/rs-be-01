@@ -1,21 +1,21 @@
 import pika
 import json
 import threading
+import os
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
 
-RABBITMQ_HOST = "localhost"
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
 QUEUE_NAME = "execution_events"
 
 def get_connection():
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host=RABBITMQ_HOST)
-    )
+    parameters = pika.URLParameters(RABBITMQ_URL)
+    connection = pika.BlockingConnection(parameters)
     return connection
 
-# ── Publisher — sends event to queue ──────────────────────────
+# ── Publisher ──────────────────────────────────────────────────
 def publish_event(event: dict):
     try:
         connection = get_connection()
@@ -32,7 +32,7 @@ def publish_event(event: dict):
     except Exception as e:
         print(f"RabbitMQ publish error: {e}")
 
-# ── Consumer — reads events from queue ────────────────────────
+# ── Consumer ───────────────────────────────────────────────────
 def start_consumer(db_session_factory):
     def callback(ch, method, properties, body):
         try:
@@ -77,6 +77,5 @@ def start_consumer(db_session_factory):
         except Exception as e:
             print(f"Consumer connection error: {e}")
 
-    # Run consumer in background thread
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
