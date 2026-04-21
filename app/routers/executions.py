@@ -1,11 +1,11 @@
-from app.messaging import publish_event
-from app.cache import clear_execution_cache
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.models import ExecutionRecord, AuditEvent, StatusEnum
 from app.schemas.schemas import ExecutionCreate, ExecutionUpdate
 from app.routers.auth import get_current_user, require_admin, require_analyst, require_viewer
+from app.cache import clear_execution_cache
+from app.messaging import publish_event
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
@@ -44,7 +44,6 @@ def create_execution(
     db.refresh(execution)
     clear_execution_cache()
 
-# Publish event to RabbitMQ
     publish_event({
         "event_type": "EXECUTION_CREATED",
         "execution_id": execution.id,
@@ -61,7 +60,7 @@ def create_execution(
         "start_time": execution.start_time
     }
 
-# ── Update Execution — ADMIN only ──────────────────────────────
+# ── Update Execution Status — ADMIN only ───────────────────────
 @router.patch("/{execution_id}")
 def update_execution(
     execution_id: str,
@@ -97,14 +96,12 @@ def update_execution(
     db.refresh(execution)
     clear_execution_cache()
 
-# Publish event to RabbitMQ
     publish_event({
         "event_type": f"EXECUTION_UPDATED_{payload.status}",
         "execution_id": execution_id,
         "actor": current_user["username"],
         "metadata": f"Status changed to {payload.status}"
     })
-
 
     return {
         "message": "Execution updated successfully",
@@ -113,12 +110,13 @@ def update_execution(
         "end_time": execution.end_time
     }
 
-# ── Get All Executions — VIEWER and above ──────────────────────
+# ── Get All Executions with Filters — VIEWER and above ─────────
 @router.get("/")
 def get_executions(
     job_name: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     triggered_by: Optional[str] = Query(None),
+    tags: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
@@ -129,11 +127,17 @@ def get_executions(
     query = db.query(ExecutionRecord)
 
     if job_name:
-        query = query.filter(ExecutionRecord.job_name.ilike(f"%{job_name}%"))
+        query = query.filter(
+            ExecutionRecord.job_name.ilike(f"%{job_name}%")
+        )
     if status:
         query = query.filter(ExecutionRecord.status == status)
     if triggered_by:
         query = query.filter(ExecutionRecord.triggered_by == triggered_by)
+    if tags:
+        query = query.filter(
+            ExecutionRecord.tags.ilike(f"%{tags}%")
+        )
     if from_date:
         query = query.filter(
             ExecutionRecord.start_time >= datetime.fromisoformat(from_date)
@@ -144,12 +148,14 @@ def get_executions(
         )
 
     total = query.count()
+    total_pages = (total + limit - 1) // limit
     executions = query.offset((page - 1) * limit).limit(limit).all()
 
     return {
         "total": total,
         "page": page,
         "limit": limit,
+        "total_pages": total_pages,
         "data": [
             {
                 "id": e.id,
