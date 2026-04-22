@@ -35,7 +35,7 @@
 |---|---|
 | Project ID | RS-BE-01 |
 | Company | Rubiscape |
-| College | [Your College Name] |
+| College | Vishwakarma Institute of Technology, Pune |
 | Team Size | 3 Students |
 | Tech Stack | Python, FastAPI, PostgreSQL, Redis, RabbitMQ, Docker |
 | Deployment | Render (Cloud) |
