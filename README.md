@@ -365,7 +365,7 @@ pytest tests/ -v
 
 | Name | Role | Contribution |
 |---|---|---|
-| Shubham | Team Lead / Backend Developer | Full architecture, all APIs, database, auth, RBAC, Redis, RabbitMQ, Docker, deployment, testing, documentation |
+| Shubham Bhukya | Team Lead / Backend Developer | Full architecture, all APIs, database, auth, RBAC, Redis, RabbitMQ, Docker, deployment, testing, documentation |
 | Pranav Bhoyate | Backend Developer | Code review, testing support |
 | Ansh Bhujbal | Backend Developer | Documentation support |
 
